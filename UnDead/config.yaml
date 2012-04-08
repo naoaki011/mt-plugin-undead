@@ -1,0 +1,12 @@
+name: UnDead
+id: UnDead
+description: <__trans phrase="Restore backupped template.">
+author_name: naoaki.onozaki
+author_link: http://www.zelazny.mydns.jp/
+plugin_link: https://github.com/naoaki011/mt-plugin-undead
+l10n_class:  UnDead::L10N
+version: 1.0
+
+callbacks:
+  cms_pre_save.template:                       $UnDead::UnDead::Plugin::_pre_save_template
+  MT::App::CMS::template_param.edit_template:  $UnDead::UnDead::Plugin::_param_edit_template
