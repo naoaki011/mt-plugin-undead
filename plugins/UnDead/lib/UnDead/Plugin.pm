@@ -8,11 +8,22 @@ sub _param_edit_template {
     return unless ($param->{type} eq 'backup');
     my $blog = $app->blog
       or return;
-
-    my $obj = MT->model('template')->load($param->{id}) if $param->{id};
+    my $user = $app->user;
+    if (! is_user_can( $blog, $user, 'edit_template' ) ) {
+        return MT->translate( 'Permission denied.' );
+    }
+    return unless $param->{id};
+    my $obj = MT->model('template')->load($param->{id})
+      or return;
     (my $template_name = $obj->name) =~ s/\s\(Backup.*$//;
     (my $template_type = $obj->name) =~ s/^.*\d{2}:\d{2}:\d{2}\)\s//;
-
+    my @templates = MT->model('template')->load({ type => $template_type,
+                                              blog_id => $blog->id });
+    my $templates = '';
+    foreach my $template (@templates) {
+        $templates .= '\'' . $template->name . '\', ';
+    }
+    $templates =~ s/,\s$//;
     my $require_outfile = '';
     $require_outfile = <<TEXT if ($template_type eq 'index');
             template_outfile: {
@@ -28,8 +39,9 @@ TEXT
                 required: "$message_required_outfile",
             }
 TEXT
-
     my $iefixer = ($template_type eq 'index') ? ',' : '';
+    my $message_name_nooverwrap = $plugin->translate('Template Name is overwrapped.');
+
     my $newElement = $tmpl->createElement('app:setting', {
         id => 'restore_template',
         label => $plugin->translate('Restore Template'),
@@ -65,7 +77,7 @@ TEXT
     width: 10em;
 }
 #input_restore input#template_name {
-    width: 40em;
+    width: 34em;
 }
 #input_restore input#template_outfile,
 #input_restore input#template_identifier {
@@ -77,28 +89,42 @@ label.error {
 }
 </style>
 <script type="text/javascript">
+var name_array = [ $templates ];
+jQuery.validator.addMethod('namenooverwrap', function(value, element) {
+    var name = jQuery('#template_name').val();
+    var validate = true;
+    jQuery.each(name_array, function() {
+        if (this == name) {
+            validate = false;
+        }
+    });
+    return this.optional(element) || validate;
+}, '$message_name_nooverwrap');
 jQuery(document).ready(function(){
     jQuery('#input_restore').hide();
+    var validator;
     jQuery('#restore_template').click(function() {
         if(jQuery(this).attr('checked') == true) {
             jQuery('#input_restore').show();
+            validator = jQuery("#template-listing-form").validate({
+                rules: {
+                    template_name: {
+                        required: '#restore_template:checked',
+                        namenooverwrap: true
+                    }$iefixer
+$require_outfile
+                },
+                messages: {
+                    template_name: {
+                        required: "$message_required_name"
+                    }$iefixer
+$message_block_required_outfile
+                }
+            });
         } else {
+            jQuery("#template-listing-form").data('validator', null);
             jQuery('#input_restore').hide();
             jQuery('#template_name').val('$template_name');
-        }
-    });
-    jQuery("#template-listing-form").validate({
-        rules: {
-            template_name: {
-                required: '#restore_template:checked'
-            }$iefixer
-$require_outfile
-        },
-        messages: {
-            template_name: {
-                required: "$message_required_name"
-            }$iefixer
-$message_block_required_outfile
         }
     });
 });
@@ -128,6 +154,22 @@ sub _pre_save_template {
         $obj->outfile($template_outfile) if ($template_outfile);
     }
     1;
+}
+
+sub is_user_can {
+    my ( $blog, $user, $permission ) = @_;
+    $permission = 'can_' . $permission;
+    my $perm = $user->is_superuser;
+    unless ( $perm ) {
+        if ( $blog ) {
+            my $admin = 'can_administer_blog';
+            $perm = $user->permissions( $blog->id )->$admin;
+            $perm = $user->permissions( $blog->id )->$permission unless $perm;
+        } else {
+            $perm = $user->permissions()->$permission;
+        }
+    }
+    return $perm;
 }
 
 sub doLog {

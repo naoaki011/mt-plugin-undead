@@ -10,6 +10,7 @@ use vars qw( %Lexicon );
     'Restore Template' => 'テンプレートを復元する',
     'Template Identifier' => 'テンプレート識別子',
     'Outfile is Required for Index Template.' => 'インデックステンプレートに出力ファイル名は必要です。',
+    'Template Name is overwrapped.' => 'テンプレート名が重複しています。',
 );
 
 1;
