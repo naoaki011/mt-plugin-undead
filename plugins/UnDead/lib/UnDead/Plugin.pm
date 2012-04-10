@@ -137,9 +137,17 @@ TEXT
 
 sub _pre_save_template {
     my ($cb, $app, $obj) = @_;
-    return 1 if ($obj->type ne 'backup');
+    my $blog = $app->blog
+      or return;
+    return 1 if (defined($obj)&&($obj->type ne 'backup'));
+    $app->validate_magic()
+      or return MT->translate( 'Permission denied.' );
+    my $user = $app->user;
+    if (! is_user_can( $blog, $user, 'edit_template' ) ) {
+        return MT->translate( 'Permission denied.' );
+    }
     if ($app->param('restore_template')) {
-        my $template_name = $app->param('template_name') || '';
+        my $template_name = $app->param('template_name') or return 1;
         my $template_outfile = $app->param('template_outfile') || '';
         unless ($template_name) {
             ($template_name = $obj->name) =~ s/\s\(Backup.*$//;
@@ -148,9 +156,21 @@ sub _pre_save_template {
         if ($template_type eq 'index') {
             return 1 unless $template_outfile;
         }
+        my $identifier = $app->param('template_identifier') || '';
+        if ($identifier) {
+            my @templates = MT->model('template')->load({ blog_id => $blog->id });
+            foreach my $template (@templates) {
+                return 1 if ($template->identifier eq $identifier);
+            }
+        }
+        my @templates = MT->model('template')->load({ type => $template_type,
+                                                      blog_id => $blog->id });
+        foreach my $template (@templates) {
+            return 1 if ($template->name eq $template_name);
+        }
         $obj->name($template_name);
         $obj->type($template_type);
-        $obj->identifier($app->param('template_identifier')) if ($app->param('template_identifier'));
+        $obj->identifier($identifier) if ($identifier);
         $obj->outfile($template_outfile) if ($template_outfile);
     }
     1;
